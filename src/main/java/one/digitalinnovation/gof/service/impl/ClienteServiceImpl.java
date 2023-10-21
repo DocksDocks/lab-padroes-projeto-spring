@@ -1,7 +1,9 @@
 package one.digitalinnovation.gof.service.impl;
 
-import java.util.Optional;
+import java.util.*;
 
+import one.digitalinnovation.gof.exceptions.ClienteNaoEncontradoException;
+import one.digitalinnovation.gof.service.AtualizacaoCliente;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -51,19 +53,50 @@ public class ClienteServiceImpl implements ClienteService {
 		salvarClienteComCep(cliente);
 	}
 
-	@Override
-	public void atualizar(Long id, Cliente cliente) {
-		// Buscar Cliente por ID, caso exista:
-		Optional<Cliente> clienteBd = clienteRepository.findById(id);
-		if (clienteBd.isPresent()) {
-			salvarClienteComCep(cliente);
+	public List<AtualizacaoCliente> compararClientes(Cliente clienteAntigo, Cliente clienteNovo) {
+		List<AtualizacaoCliente> atualizacoes = new ArrayList<>();
+
+		if (clienteNovo.getNome() != null && !Objects.equals(clienteAntigo.getNome(), clienteNovo.getNome())) {
+			atualizacoes.add(new AtualizacaoCliente("nome", clienteAntigo.getNome(), clienteNovo.getNome()));
 		}
+		if(clienteNovo.getEndereco()!= null && !Objects.equals(clienteAntigo.getEndereco(), clienteNovo.getEndereco())){
+			atualizacoes.add(new AtualizacaoCliente("endereco", clienteAntigo.getEndereco(), clienteNovo.getEndereco()));
+		}
+
+		return atualizacoes;
 	}
 
 	@Override
-	public void deletar(Long id) {
-		// Deletar Cliente por ID.
-		clienteRepository.deleteById(id);
+	public List<AtualizacaoCliente> atualizar(Long id, Cliente cliente) {
+		Optional<Cliente> clienteBd = clienteRepository.findById(id);
+		if (clienteBd.isPresent()) {
+			Cliente clienteExistente = clienteBd.get();
+
+			// Capture as diferenças antes de fazer a atualização
+			List<AtualizacaoCliente> atualizacoes = compararClientes(clienteExistente, cliente);
+
+			clienteExistente.setNome(cliente.getNome());  // Apenas um exemplo. Atualize todos os campos necessários.
+
+			// Atualizar o endereço, se necessário
+			salvarClienteComCep(clienteExistente);
+
+			clienteRepository.save(clienteExistente);
+
+			return atualizacoes;
+		} else {
+			throw new ClienteNaoEncontradoException(id);
+		}
+	}
+
+
+	@Override
+	public String deletar(Long id) {
+		if (clienteRepository.existsById(id)) {
+			clienteRepository.deleteById(id);
+			return "Cliente com o ID " + id + " foi deletado com sucesso.";
+		} else {
+			throw new ClienteNaoEncontradoException(id);
+		}
 	}
 
 	private void salvarClienteComCep(Cliente cliente) {
